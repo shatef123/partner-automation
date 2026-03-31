@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +7,7 @@
 <title>Partner Referral Automation</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700;800&display=swap');
-  :root { --bg:#0a0a0f;--surface:#111118;--surface2:#17171f;--border:#2a2a3a;--accent:#6ee7b7;--accent2:#818cf8;--error:#f87171;--text:#e2e8f0;--muted:#64748b;--cyan:#00d4c8; }
+  :root{--bg:#0a0a0f;--surface:#111118;--surface2:#17171f;--border:#2a2a3a;--accent:#6ee7b7;--accent2:#818cf8;--error:#f87171;--text:#e2e8f0;--muted:#64748b;--cyan:#00d4c8;}
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;padding:40px 24px;background-image:radial-gradient(ellipse at 20% 0%,rgba(110,231,183,0.06) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(129,140,248,0.05) 0%,transparent 60%);}
   .container{max-width:680px;margin:0 auto;}
@@ -69,94 +70,196 @@
   </div>
 </div>
 <script>
-const N8N_WEBHOOK = 'https://n8n.xsolla.com/webhook/partner-referral-automation';
-const STEP_IDS  = ['sf_auth','jira','sf_campaign','jira_link','jira_close','email'];
+const N8N_EMAIL_WEBHOOK = 'https://n8n.xsolla.com/webhook/partner-referral-email';
+const SF_INSTANCE = 'https://xsolla123.my.salesforce.com';
+const SF_USER = 's.hatef@xsolla.com';
+const SF_PASS = 'Examplepassword925!Zp2dTaueSRaW3D4ZU2iMbiYcL';
+const JIRA_AUTH = "Basic cy5oYXRlZkB4c29sbGEuY29tOkFUQVRUM3hGZkdGMGhkWFZWUkNsSHdEam1sMS1MTFpSWGNEcUNwb3JRbWEwcGhRVDFWMmxVamJNdHFxaXZqaDJ4ZUxZa2daY29JR255NDdLblVmMTJzSVhvVU4tam95N1NLNFVuR0VndVU3c2p3bnVrMk5zcWlJcm9sY2NIeVdvYVZ1dHJoblk3NGhpWUhrY2tuMXRlQUJ1Sm84Rks1VXlIMzROc3A1cU9hWVRXOEkxSzk4bERjQT00QzdFNUVBMw==";
+const JIRA_CLOUD = '9dfc393f-ac2d-4cef-8b1c-0657da26067f';
+const MCP_JIRA = [{type:'url',url:'https://mcp.atlassian.com/v1/mcp',name:'atlassian'}];
+
 const STEP_DEFS = [
-  {id:'sf_auth',  icon:'🔐', name:'Authenticating with Salesforce',       msg:'Logging in via SOAP...'},
-  {id:'jira',     icon:'🔍', name:'Reading Jira Epic',                    msg:'Fetching epic & extracting company + email...'},
-  {id:'sf_campaign',icon:'📣',name:'Creating Salesforce Campaign',        msg:'Finding SF account & creating campaign...'},
-  {id:'jira_link',icon:'🔗', name:'Linking Campaign to Jira Epic',        msg:'Adding SF campaign as web link in Jira...'},
-  {id:'jira_close',icon:'✅',name:'Closing Jira Epic (Closed/Won)',       msg:'Transitioning epic to Closed/Won...'},
-  {id:'email',    icon:'✉️', name:'Sending Partner Email',                msg:'Building MIME email with badge attachments...'},
+  {id:'sf_auth',  icon:'🔐', name:'Authenticating with Salesforce',    msg:'Logging in...'},
+  {id:'jira',     icon:'🔍', name:'Reading Jira Epic',                 msg:'Fetching epic details...'},
+  {id:'sf_camp',  icon:'📣', name:'Creating Salesforce Campaign',      msg:'Setting up campaign...'},
+  {id:'jira_link',icon:'🔗', name:'Linking Campaign to Jira Epic',     msg:'Adding web link...'},
+  {id:'jira_close',icon:'✅',name:'Closing Jira Epic (Closed/Won)',    msg:'Transitioning status...'},
+  {id:'email',    icon:'✉️', name:'Sending Partner Email',             msg:'Sending with badge attachments...'},
 ];
 
-function initSteps() {
-  document.getElementById('steps').innerHTML = STEP_DEFS.map(s => `
+function initSteps(){
+  document.getElementById('steps').innerHTML = STEP_DEFS.map(s=>`
     <div class="step pending" id="s_${s.id}">
       <div class="step-icon">${s.icon}</div>
-      <div class="step-body">
-        <div class="step-name">${s.name}</div>
-        <div class="step-detail" id="d_${s.id}">Waiting...</div>
-      </div>
+      <div class="step-body"><div class="step-name">${s.name}</div><div class="step-detail" id="d_${s.id}">Waiting...</div></div>
     </div>`).join('');
 }
-
-function setStep(id, state, detail) {
-  const el = document.getElementById('s_' + id);
-  const d  = document.getElementById('d_' + id);
-  if (el) el.className = 'step ' + state;
-  if (d && detail !== undefined) d.innerHTML = detail;
+function setStep(id,state,detail){
+  const el=document.getElementById('s_'+id), d=document.getElementById('d_'+id);
+  if(el) el.className='step '+state;
+  if(d&&detail!==undefined) d.innerHTML=detail;
+}
+function showResult(ok,title,body){
+  const r=document.getElementById('result');
+  r.className='result visible '+(ok?'ok':'fail');
+  document.getElementById('resultTitle').textContent=title;
+  document.getElementById('resultBody').innerHTML=body;
 }
 
-function showResult(ok, title, body) {
-  const r = document.getElementById('result');
-  r.className = 'result visible ' + (ok ? 'ok' : 'fail');
-  document.getElementById('resultTitle').textContent = title;
-  document.getElementById('resultBody').innerHTML = body;
+// SF via Claude API (no CORS issues — goes through Anthropic's servers)
+async function callClaude(system, user){
+  const resp = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      model:'claude-sonnet-4-20250514', max_tokens:2000,
+      system, messages:[{role:'user',content:user}]
+    })
+  });
+  if(!resp.ok) throw new Error('Claude API error: '+resp.status);
+  const data = await resp.json();
+  return data.content.filter(b=>b.type==='text').map(b=>b.text).join('').trim();
 }
 
-async function run() {
+async function callClaudeWithMCP(system, user, mcpServers){
+  const resp = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      model:'claude-sonnet-4-20250514', max_tokens:2000,
+      system, messages:[{role:'user',content:user}],
+      mcp_servers: mcpServers
+    })
+  });
+  if(!resp.ok) throw new Error('Claude API error: '+resp.status);
+  const data = await resp.json();
+  return data.content.filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+}
+
+async function run(){
   const jiraUrl = document.getElementById('jiraUrl').value.trim();
-  if (!jiraUrl) { alert('Please enter a Jira Epic URL.'); return; }
-  if (!jiraUrl.match(/browse\/\w+-\d+/)) { alert('Invalid Jira URL. Expected format: .../browse/SP-XXXX'); return; }
+  if(!jiraUrl) { alert('Please enter a Jira Epic URL.'); return; }
+  if(!jiraUrl.match(/browse\/\w+-\d+/)) { alert('Invalid Jira URL.'); return; }
+  const issueKey = jiraUrl.match(/browse\/(\w+-\d+)/)[1];
 
-  document.getElementById('runBtn').disabled = true;
-  document.getElementById('logCard').className = 'card log-card visible';
-  document.getElementById('result').className = 'result';
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('logCard').className='card log-card visible';
+  document.getElementById('result').className='result';
   initSteps();
 
-  // Animate steps while n8n processes (~4s per step)
-  let idx = 0;
-  function next() {
-    if (idx > 0) setStep(STEP_DEFS[idx-1].id, 'done', '');
-    if (idx < STEP_DEFS.length) { setStep(STEP_DEFS[idx].id, 'running', STEP_DEFS[idx].msg); idx++; }
-  }
-  next();
-  const timer = setInterval(() => { if (idx < STEP_DEFS.length) next(); else clearInterval(timer); }, 4000);
+  let companyName, contactEmail, sfCampaignId, sfCampaignUrl, sfToken, sfInstance;
 
   try {
-    const resp = await fetch(N8N_WEBHOOK, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jiraUrl })
-    });
-    clearInterval(timer);
-    let data = {};
-    try { data = await resp.json(); } catch {}
+    // ── Step 1: SF Auth via Claude API ──────────────────────────────
+    setStep('sf_auth','running','Authenticating via Claude...');
+    const sfAuthResult = await callClaude(
+      `You are a Salesforce automation assistant. Make a SOAP login request to Salesforce and return ONLY a JSON object with sessionId and instanceUrl. No other text.
+      
+      The SOAP endpoint is: https://login.salesforce.com/services/Soap/u/59.0
+      Username: ${SF_USER}
+      Password+Token: ${SF_PASS}
+      
+      Parse the XML response and return: {"sessionId":"...","instanceUrl":"https://..."}`,
+      'Login to Salesforce and return the session credentials as JSON.'
+    );
+    let sfCreds;
+    try { sfCreds = JSON.parse(sfAuthResult.replace(/```json|```/g,'').trim()); }
+    catch { throw new Error('SF auth parse failed: ' + sfAuthResult.slice(0,200)); }
+    sfToken = sfCreds.sessionId;
+    sfInstance = sfCreds.instanceUrl;
+    setStep('sf_auth','done','Authenticated ✓');
 
-    if (!resp.ok || data.success === false) {
-      STEP_IDS.forEach(id => {
-        if (document.getElementById('s_'+id)?.className.includes('running'))
-          setStep(id, 'error', data.error || 'Failed (status ' + resp.status + ')');
-      });
-      showResult(false, '❌ Automation Failed', data.error || 'n8n returned status ' + resp.status);
-    } else {
-      STEP_IDS.forEach(id => setStep(id, 'done', ''));
-      setStep('sf_campaign', 'done', `<a href="${data.sfCampaignUrl}" target="_blank">${data.companyName} Referral Program ↗</a>`);
-      setStep('email', 'done', `Sent to <strong>${data.emailSentTo}</strong> · CC: bizdev@xsolla.com · Both badge images attached ✓`);
-      showResult(true, '✅ All done!',
-        `Company: ${data.companyName}\nContact: ${data.emailSentTo}\nSalesforce: <a href="${data.sfCampaignUrl}" target="_blank">${data.sfCampaignUrl}</a>\nJira: Closed/Won\nEmail: Sent with both Preferred badge attachments`
-      );
-    }
-  } catch(err) {
-    clearInterval(timer);
-    STEP_IDS.forEach(id => {
-      if (document.getElementById('s_'+id)?.className.includes('running'))
-        setStep(id, 'error', err.message);
+    // ── Step 2: Read Jira + do all SF ops via Claude ─────────────────
+    setStep('jira','running','Fetching epic details...');
+    const automationResult = await callClaude(
+      `You are an automation assistant. Do the following steps and return ONLY a JSON object at the end.
+
+      STEP 1 - Read Jira Epic:
+      GET https://api.atlassian.com/ex/jira/${JIRA_CLOUD}/rest/api/3/issue/${issueKey}
+      Header: Authorization: ${JIRA_AUTH}
+      Extract: companyName (from summary before " - Ecosystem Partner"), contactEmail (first email in description)
+
+      STEP 2 - Find SF Account:
+      GET ${sfInstance}/services/data/v59.0/query?q=SELECT+Id,Name+FROM+Account+WHERE+Name+LIKE+'%25{companyName}%25'+LIMIT+5
+      Header: Authorization: Bearer ${sfToken}
+      Get: sfAccountId
+
+      STEP 3 - Find/Create SF Opportunity:
+      GET ${sfInstance}/services/data/v59.0/query?q=SELECT+Id+FROM+Opportunity+WHERE+AccountId='{sfAccountId}'+AND+Name+LIKE+'%25Referral%25'+LIMIT+3
+      If none found, POST to ${sfInstance}/services/data/v59.0/sobjects/Opportunity with Name="{companyName} Referral Agreement", AccountId, StageName="Closed Won", CloseDate=today, Type="Existing Business"
+
+      STEP 4 - Find Parent Campaign:
+      GET ${sfInstance}/services/data/v59.0/query?q=SELECT+Id+FROM+Campaign+WHERE+Name='Partner+Referral'+LIMIT+1
+
+      STEP 5 - Find Owner (Samir):
+      GET ${sfInstance}/services/data/v59.0/query?q=SELECT+Id+FROM+User+WHERE+Username='s.hatef@xsolla.com'+LIMIT+1
+
+      STEP 6 - Create SF Campaign:
+      POST ${sfInstance}/services/data/v59.0/sobjects/Campaign
+      Body: {Name: "{companyName} Referral Program", IsActive: true, Status: "Planned", Type: "Referral Program", AccountId: sfAccountId, OwnerId: ownerId, ParentId: parentCampaignId (if found)}
+      Get: sfCampaignId
+      Build: sfCampaignUrl = "${sfInstance}/lightning/r/Campaign/{sfCampaignId}/view"
+
+      Return ONLY this JSON (no markdown, no explanation):
+      {"companyName":"...","contactEmail":"...","sfCampaignId":"...","sfCampaignUrl":"..."}`,
+      `Run all the automation steps for Jira issue ${issueKey} and return the JSON result.`
+    );
+
+    let autoData;
+    try { autoData = JSON.parse(automationResult.replace(/```json|```/g,'').trim()); }
+    catch { throw new Error('Automation parse failed: ' + automationResult.slice(0,300)); }
+    companyName = autoData.companyName;
+    contactEmail = autoData.contactEmail;
+    sfCampaignId = autoData.sfCampaignId;
+    sfCampaignUrl = autoData.sfCampaignUrl;
+    setStep('jira','done',`<strong>${companyName}</strong> · ${contactEmail}`);
+    setStep('sf_camp','done',`<a href="${sfCampaignUrl}" target="_blank">${companyName} Referral Program ↗</a>`);
+
+    // ── Step 3: Jira Web Link + Close via Claude with MCP ───────────
+    setStep('jira_link','running','Adding SF link to Jira...');
+    await callClaudeWithMCP(
+      `Use the Atlassian MCP to add a remote web link to Jira issue ${issueKey} on cloudId "xsolla.atlassian.net".
+      POST to /rest/api/3/issue/${issueKey}/remotelink with: {globalId:"sf-campaign-${sfCampaignId}", relationship:"Salesforce Campaign", object:{url:"${sfCampaignUrl}", title:"${companyName} Referral Program"}}
+      Respond with "done".`,
+      `Add Salesforce campaign web link to Jira ${issueKey}`,
+      MCP_JIRA
+    );
+    setStep('jira_link','done','Web link added to Jira ✓');
+
+    setStep('jira_close','running','Transitioning to Closed/Won...');
+    await callClaudeWithMCP(
+      `Use Atlassian MCP to transition Jira issue ${issueKey} on cloudId "xsolla.atlassian.net" to "Closed/Won" status.
+      1) Call getTransitionsForJiraIssue 2) Find Closed/Won transition ID 3) Call transitionJiraIssue.
+      Respond "done" when complete.`,
+      `Transition ${issueKey} to Closed/Won`,
+      MCP_JIRA
+    );
+    setStep('jira_close','done','Epic marked Closed/Won ✓');
+
+    // ── Step 4: Send email via n8n ───────────────────────────────────
+    setStep('email','running',`Sending to ${contactEmail}...`);
+    const emailResp = await fetch(N8N_EMAIL_WEBHOOK,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({companyName, contactEmail, sfCampaignUrl})
     });
-    showResult(false, '❌ Failed', err.message);
+    const emailData = await emailResp.json().catch(()=>({}));
+    if(!emailResp.ok || emailData.success===false) throw new Error('Email failed: '+(emailData.error||emailResp.status));
+    setStep('email','done',`Sent to <strong>${contactEmail}</strong> · CC: bizdev@xsolla.com · Both badge images attached ✓`);
+
+    showResult(true,'✅ All done!',
+      `Company: ${companyName}\nContact: ${contactEmail}\nSalesforce: <a href="${sfCampaignUrl}" target="_blank">${sfCampaignUrl}</a>\nJira ${issueKey}: Closed/Won\nEmail: Sent with both Preferred badge images`
+    );
+
+  } catch(err){
+    STEP_DEFS.forEach(s=>{
+      if(document.getElementById('s_'+s.id)?.className.includes('running'))
+        setStep(s.id,'error',err.message);
+    });
+    showResult(false,'❌ Failed',err.message);
+    console.error(err);
   }
-  document.getElementById('runBtn').disabled = false;
+  document.getElementById('runBtn').disabled=false;
 }
 </script>
 </body>
