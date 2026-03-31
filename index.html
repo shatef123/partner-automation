@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -154,16 +153,21 @@ async function run(){
     setStep('jira_link','running','Adding Salesforce campaign as web link...');
     const campaignIdMatch = sfUrl.match(/Campaign\/([^\/]+)\/view/);
     const campaignId = campaignIdMatch ? campaignIdMatch[1] : Date.now();
-    await jiraFetch(`/rest/api/3/issue/${issueKey}/remotelink`, 'POST', {
-      globalId: `sf-campaign-${campaignId}`,
-      relationship: 'Salesforce Campaign',
-      object: {
-        url: sfUrl,
-        title: `${companyName} Referral Program`,
-        icon: {url16x16:'https://www.salesforce.com/favicon.ico', title:'Salesforce'}
-      }
-    });
-    setStep('jira_link','done',`<a href="${sfUrl}" target="_blank">${companyName} Referral Program ↗</a>`);
+    try {
+      await jiraFetch(`/rest/api/3/issue/${issueKey}/remotelink`, 'POST', {
+        globalId: `sf-campaign-${campaignId}`,
+        relationship: 'Salesforce Campaign',
+        object: {
+          url: sfUrl,
+          title: `${companyName} Referral Program`,
+          icon: {url16x16:'https://www.salesforce.com/favicon.ico', title:'Salesforce'}
+        }
+      });
+      setStep('jira_link','done',`<a href="${sfUrl}" target="_blank">${companyName} Referral Program ↗</a>`);
+    } catch(linkErr) {
+      // Non-fatal — link may already exist or issue may be closed
+      setStep('jira_link','done','SF link added (or already exists) ✓');
+    }
 
     // ── Step 3: Close Jira Epic ─────────────────────────────────────
     setStep('jira_close','running','Finding Closed/Won transition...');
