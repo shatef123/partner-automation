@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partner Referral Automation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700;800&display=swap');
+  :root { --bg:#0a0a0f;--surface:#111118;--surface2:#17171f;--border:#2a2a3a;--accent:#6ee7b7;--accent2:#818cf8;--error:#f87171;--text:#e2e8f0;--muted:#64748b;--cyan:#00d4c8; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;padding:40px 24px;background-image:radial-gradient(ellipse at 20% 0%,rgba(110,231,183,0.06) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(129,140,248,0.05) 0%,transparent 60%);}
+  .container{max-width:680px;margin:0 auto;}
+  .header{display:flex;align-items:center;gap:16px;margin-bottom:48px;}
+  .logo{width:44px;height:44px;background:linear-gradient(135deg,var(--cyan),var(--accent2));border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+  .header h1{font-size:22px;font-weight:800;letter-spacing:-0.5px;}
+  .header p{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:3px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:20px;position:relative;overflow:hidden;}
+  .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent2),transparent);opacity:0.4;}
+  .lbl{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px;display:block;}
+  input[type="text"]{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none;transition:border-color 0.2s,box-shadow 0.2s;}
+  input[type="text"]:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(129,140,248,0.1);}
+  input[type="text"]::placeholder{color:var(--muted);}
+  .run-btn{width:100%;padding:16px;background:linear-gradient(135deg,var(--accent),var(--cyan));border:none;border-radius:12px;color:#0a0a0f;font-family:'Syne',sans-serif;font-size:15px;font-weight:800;letter-spacing:0.5px;cursor:pointer;transition:opacity 0.2s,transform 0.1s;margin-top:22px;}
+  .run-btn:hover:not(:disabled){opacity:0.9;transform:translateY(-1px);}
+  .run-btn:disabled{opacity:0.45;cursor:not-allowed;transform:none;}
+  .log-card{display:none;}.log-card.visible{display:block;}
+  .log-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:20px;}
+  .steps{display:flex;flex-direction:column;}
+  .step{display:flex;gap:16px;align-items:flex-start;position:relative;}
+  .step:not(:last-child)::after{content:'';position:absolute;left:15px;top:33px;bottom:0;width:1px;background:var(--border);}
+  .step-icon{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;border:1px solid var(--border);background:var(--surface2);position:relative;z-index:1;transition:all 0.3s;}
+  .step.pending .step-icon{color:var(--muted);}
+  .step.running .step-icon{border-color:var(--accent2);background:rgba(129,140,248,0.1);color:var(--accent2);animation:pulse 1.5s infinite;}
+  .step.done .step-icon{border-color:var(--accent);background:rgba(110,231,183,0.1);color:var(--accent);}
+  .step.error .step-icon{border-color:var(--error);background:rgba(248,113,113,0.1);color:var(--error);}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(129,140,248,0.4)}50%{box-shadow:0 0 0 6px rgba(129,140,248,0)}}
+  .step-body{padding:5px 0 22px;flex:1;}
+  .step-name{font-size:14px;font-weight:600;margin-bottom:2px;}
+  .step.pending .step-name{color:var(--muted);}.step.running .step-name{color:var(--accent2);}.step.done .step-name,.step.error .step-name{color:var(--text);}
+  .step-detail{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.6;}
+  .step-detail a{color:var(--accent);text-decoration:none;}.step.error .step-detail{color:var(--error);}
+  .result{display:none;border-radius:14px;padding:22px;margin-top:4px;}.result.visible{display:block;}
+  .result.ok{background:rgba(110,231,183,0.05);border:1px solid rgba(110,231,183,0.2);}
+  .result.fail{background:rgba(248,113,113,0.05);border:1px solid rgba(248,113,113,0.2);}
+  .result-title{font-size:15px;font-weight:700;margin-bottom:8px;}
+  .result.ok .result-title{color:var(--accent);}.result.fail .result-title{color:var(--error);}
+  .result-body{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;line-height:1.7;white-space:pre-wrap;word-break:break-all;}
+  .result-body a{color:var(--accent);text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">⚡</div>
+    <div><h1>Partner Referral Automation</h1><p>Jira Epic → Salesforce Campaign → Partner Email</p></div>
+  </div>
+  <div class="card">
+    <label class="lbl">Jira Epic URL</label>
+    <input type="text" id="jiraUrl" placeholder="https://xsolla.atlassian.net/browse/SP-XXXX" />
+    <button class="run-btn" id="runBtn" onclick="run()">▶ Run Automation</button>
+  </div>
+  <div class="card log-card" id="logCard">
+    <div class="log-title">Execution Log</div>
+    <div class="steps" id="steps"></div>
+  </div>
+  <div class="result" id="result">
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-body" id="resultBody"></div>
+  </div>
+</div>
+<script>
+const N8N_WEBHOOK = 'https://n8n.xsolla.com/webhook/partner-referral-automation';
+const STEP_IDS  = ['sf_auth','jira','sf_campaign','jira_link','jira_close','email'];
+const STEP_DEFS = [
+  {id:'sf_auth',  icon:'🔐', name:'Authenticating with Salesforce',       msg:'Logging in via SOAP...'},
+  {id:'jira',     icon:'🔍', name:'Reading Jira Epic',                    msg:'Fetching epic & extracting company + email...'},
+  {id:'sf_campaign',icon:'📣',name:'Creating Salesforce Campaign',        msg:'Finding SF account & creating campaign...'},
+  {id:'jira_link',icon:'🔗', name:'Linking Campaign to Jira Epic',        msg:'Adding SF campaign as web link in Jira...'},
+  {id:'jira_close',icon:'✅',name:'Closing Jira Epic (Closed/Won)',       msg:'Transitioning epic to Closed/Won...'},
+  {id:'email',    icon:'✉️', name:'Sending Partner Email',                msg:'Building MIME email with badge attachments...'},
+];
+
+function initSteps() {
+  document.getElementById('steps').innerHTML = STEP_DEFS.map(s => `
+    <div class="step pending" id="s_${s.id}">
+      <div class="step-icon">${s.icon}</div>
+      <div class="step-body">
+        <div class="step-name">${s.name}</div>
+        <div class="step-detail" id="d_${s.id}">Waiting...</div>
+      </div>
+    </div>`).join('');
+}
+
+function setStep(id, state, detail) {
+  const el = document.getElementById('s_' + id);
+  const d  = document.getElementById('d_' + id);
+  if (el) el.className = 'step ' + state;
+  if (d && detail !== undefined) d.innerHTML = detail;
+}
+
+function showResult(ok, title, body) {
+  const r = document.getElementById('result');
+  r.className = 'result visible ' + (ok ? 'ok' : 'fail');
+  document.getElementById('resultTitle').textContent = title;
+  document.getElementById('resultBody').innerHTML = body;
+}
+
+async function run() {
+  const jiraUrl = document.getElementById('jiraUrl').value.trim();
+  if (!jiraUrl) { alert('Please enter a Jira Epic URL.'); return; }
+  if (!jiraUrl.match(/browse\/\w+-\d+/)) { alert('Invalid Jira URL. Expected format: .../browse/SP-XXXX'); return; }
+
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('logCard').className = 'card log-card visible';
+  document.getElementById('result').className = 'result';
+  initSteps();
+
+  // Animate steps while n8n processes (~4s per step)
+  let idx = 0;
+  function next() {
+    if (idx > 0) setStep(STEP_DEFS[idx-1].id, 'done', '');
+    if (idx < STEP_DEFS.length) { setStep(STEP_DEFS[idx].id, 'running', STEP_DEFS[idx].msg); idx++; }
+  }
+  next();
+  const timer = setInterval(() => { if (idx < STEP_DEFS.length) next(); else clearInterval(timer); }, 4000);
+
+  try {
+    const resp = await fetch(N8N_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jiraUrl })
+    });
+    clearInterval(timer);
+    let data = {};
+    try { data = await resp.json(); } catch {}
+
+    if (!resp.ok || data.success === false) {
+      STEP_IDS.forEach(id => {
+        if (document.getElementById('s_'+id)?.className.includes('running'))
+          setStep(id, 'error', data.error || 'Failed (status ' + resp.status + ')');
+      });
+      showResult(false, '❌ Automation Failed', data.error || 'n8n returned status ' + resp.status);
+    } else {
+      STEP_IDS.forEach(id => setStep(id, 'done', ''));
+      setStep('sf_campaign', 'done', `<a href="${data.sfCampaignUrl}" target="_blank">${data.companyName} Referral Program ↗</a>`);
+      setStep('email', 'done', `Sent to <strong>${data.emailSentTo}</strong> · CC: bizdev@xsolla.com · Both badge images attached ✓`);
+      showResult(true, '✅ All done!',
+        `Company: ${data.companyName}\nContact: ${data.emailSentTo}\nSalesforce: <a href="${data.sfCampaignUrl}" target="_blank">${data.sfCampaignUrl}</a>\nJira: Closed/Won\nEmail: Sent with both Preferred badge attachments`
+      );
+    }
+  } catch(err) {
+    clearInterval(timer);
+    STEP_IDS.forEach(id => {
+      if (document.getElementById('s_'+id)?.className.includes('running'))
+        setStep(id, 'error', err.message);
+    });
+    showResult(false, '❌ Failed', err.message);
+  }
+  document.getElementById('runBtn').disabled = false;
+}
+</script>
+</body>
+</html>
